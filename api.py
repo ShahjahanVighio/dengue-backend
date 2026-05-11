@@ -3,7 +3,7 @@ from flask_cors import CORS
 import pickle
 import numpy as np
 import os
-
+# update
 app = Flask(__name__)
 # Sab origins allow kar dein taake Vercel se block na ho
 CORS(app, resources={r"/*": {"origins": "*"}})
