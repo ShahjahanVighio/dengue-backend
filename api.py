@@ -3,46 +3,27 @@ from flask_cors import CORS
 import os
 
 app = Flask(__name__)
-
-# Strict URL parsing defaults ko off karne ke liye strict_slashes false kiya
 app.url_map.strict_slashes = False
-
-# Frontend domains handling configuration
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 HUMAN_TREATMENT_LOOKUP = {
     "mild": {
-        "first_aid": [
-            "Complete bed rest is highly recommended.",
-            "Maintain high fluid intake: Drink ORS, coconut water, or fresh juices (2-3 liters/day).",
-            "Take Paracetamol (Acetaminophen) 500mg every 6 hours for fever/pain reduction."
-        ],
         "medications": {
             "allowed": ["Paracetamol (Acetaminophen)"],
             "forbidden": ["Aspirin", "Ibuprofen", "Naproxen", "Any other NSAIDs"]
         },
-        "home_care": "Monitor urine output carefully (should be at least once every 6 hours). Check daily for warning signs like severe abdominal discomfort.",
-        "referral": "Monitor closely. If the fever persists beyond 3 days or any acute warning sign appears, consult a doctor immediately."
+        "home_care": "Complete bed rest. Maintain high fluid intake (ORS, coconut water, fresh juices). Monitor urine output carefully.",
+        "referral": "Monitor closely at home. If fever persists beyond 3 days, consult a physician."
     },
     "moderate": {
-        "first_aid": [
-            "Seek immediate medical consultation at a nearby clinic or emergency room.",
-            "Continue oral hydration but strictly avoid dark sodas, caffeine, or acidic juices.",
-            "Apply constant direct pressure to any active mild bleeding sites (nose/gums) for 10 minutes."
-        ],
         "medications": {
             "allowed": ["Only clinical or prescribed medications"],
-            "forbidden": ["Aspirin", "Ibuprofen", "Naproxen", "Any self-medicated painkillers"]
+            "forbidden": ["Aspirin", "Ibuprofen", "Any self-medicated painkillers"]
         },
-        "home_care": "Clinical monitoring or brief hospital admission (24–48 hours) for blood counts and fluid stabilization may be required.",
-        "referral": "Visit an outpatient facility, clinic, or Emergency Room within the next 12 hours."
+        "home_care": "Seek immediate medical consultation. Apply constant direct pressure to active mild bleeding sites.",
+        "referral": "Visit an outpatient facility or Emergency Room within the next 12 hours."
     },
     "severe": {
-        "first_aid": [
-            "URGENT: Immediately seek professional emergency healthcare or call an ambulance.",
-            "Lay the patient completely flat and elevate their legs slightly (shock recovery position).",
-            "Do NOT administer any fluids or food by mouth if the patient is lethargic or unconscious."
-        ],
         "medications": {
             "allowed": ["Emergency intravenous (IV) fluids and specialized critical care protocols in ICU"],
             "forbidden": ["All types of oral medications or self-treatment attempts"]
@@ -53,39 +34,35 @@ HUMAN_TREATMENT_LOOKUP = {
 }
 
 def analyze_dengue_severity(symptoms, risk_factors):
-    """
-    Explicitly maps binary clinical vectors to exact probability scores.
-    """
-    # 1. Clean extracted values from safe dictionary unpacking
+    # Flexible mapping supporting both camelCase from frontend and snake_case
     fever = int(symptoms.get('fever', 0))
     headache = int(symptoms.get('headache', 0))
-    joint_pain = int(symptoms.get('muscle_joint_pain', 0))
-    mild_bleeding = int(symptoms.get('mild_bleeding', 0))
-    difficulty_breath = int(symptoms.get('difficulty_breath', 0))
-    stagnant_water = int(risk_factors.get('stagnant_water_zone', 0))
     
-    # 2. Extract clinical score count based ONLY on checked parameters
+    # Check both potential key mappings
+    joint_pain = int(symptoms.get('muscle_joint_pain', symptoms.get('jointPain', 0)))
+    mild_bleeding = int(symptoms.get('mild_bleeding', symptoms.get('bleeding', 0)))
+    difficulty_breath = int(symptoms.get('difficulty_breath', symptoms.get('breathing', 0)))
+    
+    stagnant_water = int(risk_factors.get('stagnant_water_zone', risk_factors.get('waterZone', 0)))
+    
     active_symptoms_count = fever + headache + joint_pain + mild_bleeding + difficulty_breath
     
     if active_symptoms_count == 0:
         return 0.0, "mild"
         
-    # 3. Score weighting distribution logic
-    # Total checked items in frontend are maximum 6
     total_checked = active_symptoms_count + stagnant_water
     probability = round((total_checked / 6.0) * 100, 2)
     
-    # 4. Critical Pathway Mapping
+    # Clinical logic rules
     if difficulty_breath == 1 or probability >= 80.0:
         severity = "severe"
-    elif mild_bleeding == 1 or probability >= 50.0:
+    elif mild_bleeding == 1 or probability >= 45.0:
         severity = "moderate"
     else:
         severity = "mild"
         
     return probability, severity
 
-# Explicit matching standard patterns manually defined
 @app.route('/predict/human', methods=['POST'])
 def predict_human():
     try:
@@ -103,8 +80,7 @@ def predict_human():
             "status": "success",
             "risk_score_percentage": probability,
             "severity_level": severity,
-            "treatment_plan": treatment_plan,
-            "disclaimer": "This assessment is an AI-generated suggestion for educational reference. It is not a replacement for professional clinical laboratory tests."
+            "treatment_plan": treatment_plan
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
