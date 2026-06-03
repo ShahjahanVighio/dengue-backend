@@ -58,7 +58,11 @@ def analyze_dengue_severity(symptoms, risk_factors):
     """
     Evaluates the features to determine the conditional risk probability and severity category.
     """
-    # Grouping features for severity extraction
+    # Safety Check: Agar koi symptom selected nahi hy tou return 0% aur mild/none status
+    symptoms_active_count = sum(symptoms.values())
+    if symptoms_active_count == 0:
+        return 0.0, "mild"
+
     severe_indicators = [
         symptoms.get('mucous_membrane_bleeding', 0),
         symptoms.get('difficulty_breath', 0),
@@ -78,11 +82,15 @@ def analyze_dengue_severity(symptoms, risk_factors):
     
     probability = min((total_active_features / total_possible_features) * 100, 100.0)
     
-    # Evaluation logic logic
-    if any(severe_indicators) or (probability > 75.0 and symptoms.get('fever', 0)):
+    # Strict Clinical Decision Tree Matrix
+    if any(severe_indicators) or probability >= 65.0:
         severity = "severe"
-    elif any(moderate_indicators) or probability > 40.0:
-        severity = "moderate"
+    elif any(moderate_indicators) or probability >= 30.0:
+        # Agar severe indicators nahi hain aur mild symptoms hain tou it must be moderate threshold
+        if symptoms_active_count <= 2 and not any(moderate_indicators):
+            severity = "mild"
+        else:
+            severity = "moderate"
     else:
         severity = "mild"
         
